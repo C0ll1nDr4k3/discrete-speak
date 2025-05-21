@@ -25,14 +25,13 @@ def stream():
 
 
 def api(
+    *,
     symbols: List[str],
     start: datetime,
     end: datetime,
     step: TimeFrame,
     security: Security
 ) -> Dict[str, List[Bar]]:
-    assert isinstance(security, Security), f"Invalid security type: {security}"
-
     alpaca_api_key = environ.get("ALPACA_API_KEY")
     alpaca_api_secret = environ.get("ALPACA_API_SECRET")
 
