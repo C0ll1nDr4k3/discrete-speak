@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from alpaca.data.timeframe import TimeFrame
-from discrete_speak.retrieval import Alpaca, Security
+from ds.retrieval import Alpaca, Security
 
 
 def test_api():
