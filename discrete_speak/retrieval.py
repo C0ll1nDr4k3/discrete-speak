@@ -13,7 +13,7 @@ from alpaca.data import (
 from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest, OptionBarsRequest
 from alpaca.data.models.bars import Bar as TimeBar, BarSet
 from dotenv import load_dotenv
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, final
 
 
 AlpacaResponse: TypeAlias = BarSet | dict[str, list[TimeBar]]
@@ -25,6 +25,7 @@ class Security(Enum):
     OPTIONS = "OPTIONS"
 
 
+@final
 @dataclass(frozen=True, kw_only=True)
 class Alpaca:
     ...
