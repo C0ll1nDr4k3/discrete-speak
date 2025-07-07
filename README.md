@@ -2,5 +2,4 @@
 
 ## Usage
 
-`discrete-speak` has two pipelines: a trading pipeline and a training pipeline.
-
+`discrete-speak` will have two pipelines: an inference (online) pipeline and a training (offline) pipeline.
