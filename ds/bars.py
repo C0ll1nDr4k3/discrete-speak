@@ -1,6 +1,8 @@
 import math
-from alpaca.data.models import Bar as TimeBar  # Renaming for clarity
 from dataclasses import dataclass
+from enum import Enum
+
+from alpaca.data.models import Bar as TimeBar  # Renaming for clarity
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -163,3 +165,8 @@ class DollarBar:
 
 
 Bar = TimeBar | VolumeBar | DollarBar
+
+
+class Conversion(Enum):
+    VOLUME = VolumeBar
+    DOLLAR = DollarBar

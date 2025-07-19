@@ -1,40 +1,50 @@
-from dataclasses import dataclass
-from enum import Enum
-from datetime import datetime, time, timedelta
-from colorama import Fore
 import os
 import warnings
+from dataclasses import dataclass
+from datetime import datetime, time, timedelta
+from enum import Enum
+from typing import Any, TypeAlias, final
 from zoneinfo import ZoneInfo
+
 from alpaca.data import (
     CryptoHistoricalDataClient,
-    StockHistoricalDataClient,
     OptionHistoricalDataClient,
+    StockHistoricalDataClient,
 )
-from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest, OptionBarsRequest
-from alpaca.data.models.bars import Bar as TimeBar, BarSet
+from alpaca.data.models.bars import Bar as TimeBar
+from alpaca.data.models.bars import BarSet
+from alpaca.data.requests import CryptoBarsRequest, OptionBarsRequest, StockBarsRequest
+from colorama import Fore
 from dotenv import load_dotenv
-from typing import Any, TypeAlias, final
-
 
 AlpacaResponse: TypeAlias = BarSet | dict[str, list[TimeBar]]
 
 
 class Security(Enum):
-    CRYPTO = "CRYPTO"
-    STOCKS = "STOCKS"
-    OPTIONS = "OPTIONS"
+    CRYPTO = "Crypto"
+    EQUITIES = "Equities"
+    OPTIONS = "Options"
 
 
 @final
 @dataclass(frozen=True, kw_only=True)
 class Alpaca:
-    ...
+    """
+    `Alpaca` acts as namespace for Alpaca interfaces. Alpaca's proprietary SDK
+    is uniquely awful insofar as it implements pseudo-enums that do not pass
+    any linting.
 
-    @classmethod
-    def real_time(cls):
-        # alpaca_websocket_key = environ.get("ALPACA_WEBSOCKET_KEY")
-        # alpaca_websocket_secret = environ.get("ALPACA_WEBSOCKET_SECRET")
-        ...
+    This is ***stateless***.
+
+    Reasoning about and using an object as a namespace is much easier than the
+    complexity you'd encounter with Python's package system.
+    """
+
+    # @classmethod
+    # def real_time(cls):
+    #     # alpaca_websocket_key = environ.get("ALPACA_WEBSOCKET_KEY")
+    #     # alpaca_websocket_secret = environ.get("ALPACA_WEBSOCKET_SECRET")
+    #     ...
 
     @classmethod
     def historical(
@@ -49,8 +59,7 @@ class Alpaca:
         """
         Retrieves from [Alpaca's Historical Data API](https://docs.alpaca.markets/docs/historical-api).
 
-        ## Args
-        ---
+        Args
         - `step`: `step` is untyped on account of Alpaca's `TimeFrame` defining its intervals
         (`.Minute`, `.Day`, etc.) as `classproperty` methods instead of proper class properties. :)
         """
@@ -73,7 +82,7 @@ class Alpaca:
                     timeframe=step,
                 )
                 response = client.get_crypto_bars(request)
-            case Security.STOCKS:
+            case Security.EQUITIES:
                 client = StockHistoricalDataClient(
                     api_key=alpaca_api_key, secret_key=alpaca_api_secret
                 )
@@ -154,6 +163,7 @@ def _within_hours(*, start: datetime, end: datetime) -> bool:
             f"{Fore.RED}The provided date range ({start.strftime('%a %I:%M %p %Z')} to "
             f"{end.strftime('%a %I:%M %p %Z')}) does not contain any valid "
             f"market hours. Market hours are 9:30 AM to 4:00 PM {start.tzname()}, Monday through Friday."
+            f"{Fore.RESET}"
         )
         warnings.warn(message)
 
