@@ -5,37 +5,49 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "alpaca-py>=0.40.1",
-    "colorama>=0.4.6",
-    "dotenv>=0.9.9",
-    "modular>=25.4.0",
-    "numpy>=2.2.6",
-    "pandas>=2.2.3",
-    "ruptures>=1.1.9",
-    "scipy>=1.15.3",
-    "seaborn>=0.13.2",
-    "torch>=2.7.0",
+  "alpaca-py>=0.40.1",
+  "colorama>=0.4.6",
+  "dotenv>=0.9.9",
+  "modular>=25.4.0",
+  "numpy>=2.2.6",
+  "pandas>=2.2.3",
+  "ruptures>=1.1.9",
+  "scipy>=1.15.3",
+  "seaborn>=0.13.2",
+  "torch>=2.7.0",
 ]
 
 [dependency-groups]
 dev = [
-    "basedpyright>=1.29.2",
-    "pandas-stubs>=2.2.3.250527",
-    "pylint>=3.3.7",
-    "pyright>=1.1.401",
-    "pytest>=8.3.5",
-    "pytest-mock>=3.14.0",
-    "ruff>=0.11.10",
-    "ty>=0.0.1a7",
+  "basedpyright>=1.29.2",
+  "darglint>=1.8.1",
+  "pandas-stubs>=2.2.3.250527",
+  "pylint>=3.3.7",
+  "pyright>=1.1.401",
+  "pytest>=8.3.5",
+  "pytest-mock>=3.14.0",
+  "ruff>=0.11.10",
+  "ty>=0.0.1a7",
 ]
 
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
 
+[tool.pylint.FORMAT]
+indent-string = "  "
+max-line-length = 80
+
 [tool.pylint.messages_control]
 disable = [
-    "missing-module-docstring",
-    "missing-class-docstring",
-    "missing-function-docstring",
+  "missing-module-docstring",
+  "missing-class-docstring",
+  "missing-function-docstring",
 ]
+
+[tool.ruff]
+line-length = 80
+indent-width = 2
+
+[tool.ruff.format]
+docstring-code-format = true
