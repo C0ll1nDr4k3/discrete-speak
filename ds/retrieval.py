@@ -3,6 +3,7 @@ import warnings
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from enum import Enum
+from logging import Logger
 from typing import Any, TypeAlias, final
 from zoneinfo import ZoneInfo
 
@@ -80,6 +81,8 @@ class Alpaca:
 
     _within_hours(start=start, end=end)
 
+    print("Retrieving bars...")
+
     response: AlpacaResponse
     match security:
       case Security.CRYPTO:
@@ -115,6 +118,8 @@ class Alpaca:
           timeframe=step,
         )
         response = client.get_option_bars(request)
+
+    print("Retrieved bars.")
 
     assert isinstance(response, BarSet), (
       f"Expected a BarSet instance from Alpaca, got {type(response)}."

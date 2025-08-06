@@ -1,8 +1,10 @@
 import math
 from dataclasses import dataclass
 from enum import Enum
+from functools import cache
 
-from alpaca.data.models import Bar as TimeBar  # Renaming for clarity
+from alpaca.data.models import Bar as TimeBar
+from tqdm import tqdm
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -25,7 +27,7 @@ class VolumeBar:
   @classmethod
   def from_alpaca(
     cls,
-    index: list[TimeBar],
+    time_bars: list[TimeBar],
     volume_threshold: float,
   ) -> list["VolumeBar"]:
     """
@@ -48,38 +50,37 @@ class VolumeBar:
     # subinterval = "constituent bars for current volume bar"
     subinterval = []
 
-    for time_bar in index:
+    for time_bar in time_bars:
       bar_volume: float = time_bar.volume
-
       subinterval.append(time_bar)
 
-      # Check if this bar completes a VolumeBar
-      if accumulated_volume + bar_volume >= volume_threshold:
-        # Form the VolumeBar
-        vb_open = subinterval[0].open
-        vb_high = max(tb.high for tb in subinterval)
-        vb_low = min(tb.low for tb in subinterval)
-        vb_close = subinterval[-1].close  # which is time_bar.close
-
-        # Assuming time_bar.timestamp is start of its interval
-        # vb_timestamp = constituent_bars_for_current_volume_bar[
-        #     -1
-        # ].timestamp + timedelta(minutes=1)
-
-        volume_bars.append(
-          cls(
-            open=vb_open,
-            high=vb_high,
-            low=vb_low,
-            close=vb_close,
-          )
-        )
-
-        # Reset for the next VolumeBar
-        accumulated_volume = 0.0
-        subinterval = []
-      else:
+      if accumulated_volume + bar_volume < volume_threshold:
         accumulated_volume += bar_volume
+        continue
+
+      # If the it's over the threshold, form a new bar
+      vb_open = subinterval[0].open
+      vb_high = max(tb.high for tb in subinterval)
+      vb_low = min(tb.low for tb in subinterval)
+      vb_close = subinterval[-1].close  # which is time_bar.close
+
+      # Assuming time_bar.timestamp is start of its interval
+      # vb_timestamp = constituent_bars_for_current_volume_bar[
+      #     -1
+      # ].timestamp + timedelta(minutes=1)
+
+      volume_bars.append(
+        cls(
+          open=vb_open,
+          high=vb_high,
+          low=vb_low,
+          close=vb_close,
+        )
+      )
+
+      # Reset for the next VolumeBar
+      accumulated_volume = 0.0
+      subinterval = []
 
     return volume_bars
 
@@ -175,5 +176,5 @@ Bar = TimeBar | VolumeBar | DollarBar
 
 
 class Conversion(Enum):
-  VOLUME = VolumeBar
-  DOLLAR = DollarBar
+  VOLUME = "volume"
+  DOLLAR = "dollar"

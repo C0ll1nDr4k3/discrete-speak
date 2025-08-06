@@ -14,6 +14,7 @@ import numpy as np
 from colorama import Fore
 from numpy.typing import NDArray
 from scipy.optimize import OptimizeWarning, curve_fit
+from tqdm import tqdm
 
 
 class Labeler:
@@ -32,7 +33,7 @@ class Labeler:
       "quadratic": lambda x, a, b, c: a * x**2 + b * x + c,
       "cubic": lambda x, a, b, c, d: a * x**3 + b * x**2 + c * x + d,
       "exponential": lambda x, a, b: a * np.exp(b * x),
-      "logarithmic": lambda x, a, b: a * np.log(b * x),
+      # "logarithmic": lambda x, a, b: a * np.log(b * x),
     }
 
     # Initial guesses for curve_fit
@@ -41,10 +42,10 @@ class Labeler:
       "quadratic": [1.0, 0.0, 0.0],
       "cubic": [1.0, 0.0, 0.0, 0.0],
       "exponential": [1.0, 0.0],
-      "logarithmic": [1.0, 1.0],
+      # "logarithmic": [1.0, 1.0],
     }
 
-  def label_segment(self, y: NDArray) -> tuple[str, Any, float]:
+  def _label_segment(self, y: NDArray) -> tuple[str, Any, float]:
     """
     Fit each candidate curve to the data in `y` and select the best.
 
@@ -141,7 +142,7 @@ class Labeler:
 
     for breakpoint in breakpoints + [len(series)]:
       segment = series[start:breakpoint]
-      label, params, err = self.label_segment(segment)
+      label, params, err = self._label_segment(segment)
       labels.append(
         {
           "start": start,

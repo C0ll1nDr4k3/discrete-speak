@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, final
+from typing import Any, Callable, final
 
 from alpaca.data.timeframe import TimeFrame
 
 from .bars import Conversion
-from .thresholds import ADV, DES, Threshold, ThresholdStrategy
+from .thresholds import Threshold
 
 
 @final
@@ -39,42 +39,17 @@ class Config:
   plot_conv_sg: bool = False
 
   # Segmentation
-  segmentation_model: str = "l2"
-  segmentation_penalty: float = 10.0
-  segmentation_min_size: int = 5
-  segmentation_jump: int = 1
+  segmentation_model: str = "rbf" # "l1", "l2", "rbf", or "linear"
+  segmentation_penalty: float = 3.0
+  segmentation_min_size: int = 4
+  segmentation_jump: int = 5
 
   # Threshold
-  threshold_strategy: ThresholdStrategy = ThresholdStrategy.ADV
+  threshold_strategy: Threshold = Threshold.ADV
   threshold_target_bars_per_day: int = 1_000
   threshold_adv_lookback_days: int = 20
   threshold_des_alpha: float = 0.1
   threshold_des_scaling_factor: float = 0.1
 
-  threshold_static_dollar_threshold: float = 100_000.0
-  threshold_staic_volume_threshold: int = 10_000
-  threshold_static_time_threshold: int = 0
-
-  def threshold_from(self) -> Threshold:
-    """
-    Create threshold calculators based on method enum.
-
-    Args:
-        method: ThresholdMethod enum value
-        **kwargs: Additional parameters for the chosen method
-
-    Returns:
-        ThresholdCalculator instance
-    """
-    match self.threshold_strategy:
-      case ThresholdStrategy.ADV:
-        return ADV(
-          conversion=self.conversion,
-          lookback_days=self.threshold_adv_lookback_days,
-        )
-      case ThresholdStrategy.DES:
-        return DES(
-          conversion=self.conversion,
-          alpha=self.threshold_des_alpha,
-          scaling_factor=self.threshold_des_scaling_factor,
-        )
+  threshold_static_dollar_threshold: float = 500_000_000.0
+  threshold_staic_volume_threshold: int = 5_000_000
