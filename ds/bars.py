@@ -1,10 +1,8 @@
 import math
 from dataclasses import dataclass
 from enum import Enum
-from functools import cache
 
 from alpaca.data.models import Bar as TimeBar
-from tqdm import tqdm
 
 
 @dataclass(frozen=True, kw_only=True)

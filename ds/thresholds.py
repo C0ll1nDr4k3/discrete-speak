@@ -6,9 +6,6 @@ This module provides two approaches for dynamically calculating thresholds:
 2. Dynamic smoothing using exponential moving averages to reduce day-to-day jumps
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
 
 from alpaca.data.models.bars import Bar as TimeBar

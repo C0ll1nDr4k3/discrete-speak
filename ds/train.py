@@ -11,7 +11,6 @@ from typing import Any, Sequence
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-from alpaca.data.models.bars import Bar as TimeBar
 from scipy.signal import savgol_filter
 
 from .bars import Bar, Conversion, DollarBar, VolumeBar

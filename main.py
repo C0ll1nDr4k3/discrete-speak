@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 from time import time_ns
 
-import seaborn as sns
 from alpaca.data.timeframe import TimeFrame
 
 from ds.bars import Conversion

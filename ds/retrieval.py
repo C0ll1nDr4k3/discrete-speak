@@ -3,7 +3,6 @@ import warnings
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from enum import Enum
-from logging import Logger
 from typing import Any, TypeAlias, final
 from zoneinfo import ZoneInfo
 

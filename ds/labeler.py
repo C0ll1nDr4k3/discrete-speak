@@ -14,7 +14,6 @@ import numpy as np
 from colorama import Fore
 from numpy.typing import NDArray
 from scipy.optimize import OptimizeWarning, curve_fit
-from tqdm import tqdm
 
 
 class Labeler:

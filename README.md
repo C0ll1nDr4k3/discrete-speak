@@ -13,7 +13,7 @@ uv run ruff format
 Linting
 
 ```
-uv run ruff check; uv run pylint ds
+uv run ruff check --fix; uv run pylint ds
 ```
 
 Imports
