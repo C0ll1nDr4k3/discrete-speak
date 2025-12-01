@@ -14,7 +14,7 @@ from ds.generate import save_dataset_from_results
 def main() -> None:
     # Configure a 7-day, 1-minute retrieval window with all parameters
     config = Config(
-        start=datetime.now() - timedelta(days=120),
+        start=datetime.now() - timedelta(days=365),
         step=TimeFrame.Minute,
         plot_enabled=True,
         plot_save=True,
@@ -69,14 +69,14 @@ def main() -> None:
         return
 
     # Hyperparameters
-    seq_len = 32
-    label_len = 16
-    pred_len = 8
+    seq_len = 4
+    label_len = 4
+    pred_len = 4
     batch_size = 32
     d_model = 512
     learning_rate = 1e-4
-    epochs = 30
-    plot_step = 10
+    epochs = 1_000
+    plot_step = epochs // 10
 
     # Initialize Discretizer to get vocab size
     discretizer = Discretizer(
@@ -94,12 +94,41 @@ def main() -> None:
     output_vocab_size = max(vocab_size, num_types)
     c_out = 5 * output_vocab_size
 
-    dataset = PreTokenizedCurveDataset(dataset_data, seq_len, label_len, pred_len)
-    if len(dataset) == 0:
-        print("Dataset is empty. Skipping training.")
+    # Split data into train and validation (80/20)
+    train_data = []
+    val_data = []
+    split_ratio = 0.8
+    
+    for item in dataset_data:
+        tokens = item['tokens']
+        split_idx = int(len(tokens) * split_ratio)
+        
+        # Ensure we have enough data for at least one sequence in both sets
+        min_len = seq_len + pred_len + label_len + 1
+        print(f"Symbol: {item['symbol']}, Tokens: {len(tokens)}, SplitIdx: {split_idx}, MinLen: {min_len}")
+        if split_idx < min_len or (len(tokens) - split_idx) < min_len:
+            print(f"Warning: Not enough data to split symbol {item['symbol']}. Using all for training.")
+            train_data.append(item)
+            continue
+            
+        train_tokens = tokens[:split_idx]
+        val_tokens = tokens[split_idx:]
+        
+        train_data.append({'symbol': item['symbol'], 'tokens': train_tokens})
+        val_data.append({'symbol': item['symbol'], 'tokens': val_tokens})
+
+    train_dataset = PreTokenizedCurveDataset(train_data, seq_len, label_len, pred_len)
+    val_dataset = PreTokenizedCurveDataset(val_data, seq_len, label_len, pred_len)
+    
+    print(f"Train dataset size: {len(train_dataset)}")
+    print(f"Val dataset size: {len(val_dataset)}")
+    
+    if len(train_dataset) == 0:
+        print("Train dataset is empty. Skipping training.")
         return
 
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     # Device selection
     if torch.cuda.is_available():
@@ -131,106 +160,24 @@ def main() -> None:
     criterion = torch.nn.CrossEntropyLoss()
 
     print("Starting training...")
-    model.train()
+    
     losses = []
+    val_losses = []
     
     import matplotlib.pyplot as plt
     import numpy as np
     import os
     from ds.labeler import Labeler
+    from ds.visualization import Visualizer
     
     labeler = Labeler()
-
-    def visualize_predictions(batch_y, outputs, step, discretizer, labeler):
-        """
-        Visualizes actual vs predicted curves.
-        batch_y: [B, LabelLen+PredLen, 5]
-        outputs: [B, PredLen, 5, VocabSize]
-        """
-        # Take the last sample in the batch
-        target_tokens = batch_y[-1, -pred_len:, :].cpu() # [PredLen, 5]
-        
-        # Get predicted tokens
-        # outputs: [B, PredLen, 5, VocabSize] -> [PredLen, 5, VocabSize]
-        pred_logits = outputs[-1] 
-        pred_tokens = torch.argmax(pred_logits, dim=-1).cpu() # [PredLen, 5]
-        
-        # Reconstruct curves
-        # We need to plot them sequentially.
-        # Let's assume each segment is length 10 (arbitrary for visualization if we don't have original length)
-        # Or we can just plot the functions.
-        
-        segment_len = 10
-        total_len = pred_len * segment_len
-        x_axis = np.arange(total_len)
-        
-        actual_y = []
-        predicted_y = []
-        
-        for i in range(pred_len):
-            # Actual
-            t_type_idx = target_tokens[i, 0].item()
-            t_params_idx = target_tokens[i, 1:].tolist()
-            
-            t_type = discretizer.get_curve_type(t_type_idx)
-            t_params = [discretizer.get_param_value(p) for p in t_params_idx]
-            
-            # Predicted
-            p_type_idx = pred_tokens[i, 0].item()
-            p_params_idx = pred_tokens[i, 1:].tolist()
-            
-            # Handle potential out of bounds for predicted indices
-            try:
-                p_type = discretizer.get_curve_type(p_type_idx)
-            except ValueError:
-                p_type = "constant" # Fallback
-                
-            try:
-                p_params = [discretizer.get_param_value(p) for p in p_params_idx]
-            except ValueError:
-                p_params = [0.0] * 4 # Fallback
-            
-            # Generate points
-            seg_x = np.arange(1, segment_len + 1)
-            
-            # Determine number of params needed
-            # linear: 2, quadratic: 3, cubic: 4, exponential: 2
-            param_counts = {
-                "linear": 2,
-                "quadratic": 3,
-                "cubic": 4,
-                "exponential": 2,
-                "constant": 1 # Special case handled in labeler but useful here
-            }
-            
-            if t_type in labeler.functions:
-                n_params = param_counts.get(t_type, 4)
-                actual_seg = labeler.functions[t_type](seg_x, *t_params[:n_params])
-            else:
-                actual_seg = np.zeros(segment_len)
-                
-            if p_type in labeler.functions:
-                n_params = param_counts.get(p_type, 4)
-                predicted_seg = labeler.functions[p_type](seg_x, *p_params[:n_params])
-            else:
-                predicted_seg = np.zeros(segment_len)
-                
-            actual_y.extend(actual_seg)
-            predicted_y.extend(predicted_seg)
-            
-        plt.figure(figsize=(10, 6))
-        plt.plot(x_axis, actual_y, label="Actual", linestyle="-")
-        plt.plot(x_axis, predicted_y, label="Predicted", linestyle="--")
-        plt.title(f"Actual vs Predicted (Step {step})")
-        plt.legend()
-        
-        os.makedirs("plots/steps", exist_ok=True)
-        plt.savefig(f"plots/steps/step_{step}.png")
-        plt.close()
+    visualizer = Visualizer(save_dir="plots/steps")
 
     for epoch in range(epochs):
+        # Training Phase
+        model.train()
         total_loss = 0
-        for i, (batch_x, batch_y) in enumerate(dataloader):
+        for i, (batch_x, batch_y) in enumerate(train_loader):
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
             
@@ -240,7 +187,9 @@ def main() -> None:
             # batch_y: [B, LabelLen+PredLen, 5]
             
             # Decoder input
-            dec_inp = batch_y[:, :label_len+pred_len, :]
+            # Mask the future (prediction) part with zeros to prevent leakage
+            dec_inp = torch.zeros_like(batch_y[:, -pred_len:, :]).long()
+            dec_inp = torch.cat([batch_y[:, :label_len, :], dec_inp], dim=1).long().to(device)
             
             # Forward
             # Note: We need to pass x_mark as None
@@ -265,11 +214,35 @@ def main() -> None:
             total_loss += loss.item()
             losses.append(loss.item())
             
-            if i % plot_step == 0:
-                print(f"Epoch {epoch+1}/{epochs}, Step {i}, Loss: {loss.item():.4f}")
-                visualize_predictions(batch_y, outputs, epoch * len(dataloader) + i, discretizer, labeler)
+            global_step = epoch * len(train_loader) + i
+            if global_step % plot_step == 0:
+                # Visualize on training data
+                visualizer.visualize(batch_y, outputs, global_step, discretizer, labeler, pred_len)
                 
-        print(f"Epoch {epoch+1} Average Loss: {total_loss / len(dataloader):.4f}")
+        avg_train_loss = total_loss / len(train_loader)
+        
+        # Validation Phase
+        model.eval()
+        total_val_loss = 0
+        with torch.no_grad():
+            for i, (batch_x, batch_y) in enumerate(val_loader):
+                batch_x = batch_x.to(device)
+                batch_y = batch_y.to(device)
+                
+                dec_inp = torch.zeros_like(batch_y[:, -pred_len:, :]).long()
+                dec_inp = torch.cat([batch_y[:, :label_len, :], dec_inp], dim=1).long().to(device)
+                
+                outputs = model(batch_x, None, dec_inp, None)
+                outputs = outputs.view(outputs.shape[0], pred_len, 5, output_vocab_size)
+                target_tokens = batch_y[:, -pred_len:, :]
+                
+                loss = criterion(outputs.reshape(-1, output_vocab_size), target_tokens.reshape(-1))
+                total_val_loss += loss.item()
+                
+        avg_val_loss = total_val_loss / len(val_loader) if len(val_loader) > 0 else 0
+        val_losses.append(avg_val_loss)
+        
+        print(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
 
     print("Training finished.")
 

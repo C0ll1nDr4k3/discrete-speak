@@ -34,6 +34,9 @@ class CurveTokenizer:
         
         return [type_id] + param_ids
 
+    def tokenize_sequence(self, sequence: List[Dict[str, Any]]) -> List[List[int]]:
+        return [self.tokenize(item) for item in sequence]
+
 class CurveDataset(Dataset):
     def __init__(self, data: List[Dict[str, Any]], discretizer: Discretizer, seq_len: int, label_len: int, pred_len: int):
         """

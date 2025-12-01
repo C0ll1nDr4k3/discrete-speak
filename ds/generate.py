@@ -92,7 +92,7 @@ if __name__ == "__main__":
     parser.add_argument("--start", type=str, required=False, help="Start date (YYYY-MM-DD)")
     parser.add_argument("--end", type=str, default=None, help="End date (YYYY-MM-DD), defaults to now")
     parser.add_argument("--output", type=str, default="dataset.pt", help="Output file path")
-    parser.add_argument("--days", type=int, help="Number of days to look back if start is not provided (alternative to start)")
+    parser.add_argument("--days", type=int, default=100, help="Number of days of data to fetch")
     
     args = parser.parse_args()
     
