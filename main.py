@@ -5,15 +5,15 @@ from alpaca.data.timeframe import TimeFrame
 
 from ds.bars import Conversion
 from ds.config import Config
+from ds.fit import fit, print_labels
 from ds.retrieval import Security
 from ds.thresholds import Threshold
-from ds.fit import fit
 
 
 def main() -> None:
     # Configure a 7-day, 1-minute retrieval window with all parameters
     config = Config(
-        start=datetime.now() - timedelta(days=2),
+        start=datetime.now() - timedelta(days=4),
         step=TimeFrame.Minute,
         plot_enabled=True,
         plot_save=True,
@@ -44,14 +44,7 @@ def main() -> None:
     results = fit(symbols, Security.EQUITIES, config)
     end = time_ns()
 
-    for symbol, data in results.items():
-        print(f"\n=== {symbol} ===")
-        for seg in data["labels"]:
-            start, end = seg["start"], seg["end"]
-            label, params, error = seg["label"], seg["params"], seg["error"]
-            print(
-                f"{start:>4}:{end:<4}  {label:<12}  {params=!r}  {error=:.4f}"
-            )
+    print_labels(results)
 
     print(f"Training completed in {end - start} nanoseconds")
 

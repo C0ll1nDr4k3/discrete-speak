@@ -6,9 +6,10 @@ This module provides:
   - train(config): runs the full offline pipeline given an immutable `Config`.
 """
 
+import copy
 import os
 from itertools import product
-from typing import Any, Collection, Dict, List, Sequence
+from typing import Any, Dict, List, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,6 +22,24 @@ from .labeler import Labeler
 from .retrieval import Alpaca, Security
 from .segmenters import Ruptures
 from .thresholds import Threshold
+
+
+from .discretization import Discretizer
+
+def discretize(
+    labels: List[Dict[str, Any]],
+    max_power: int,
+    min_power: int,
+    points_per_magnitude: int,
+) -> List[Dict[str, Any]]:
+    """
+    Map curve parameters to a discrete, logarithmically spaced space.
+    
+    Delegates to the Discretizer class.
+    """
+    discretizer = Discretizer(min_power, max_power, points_per_magnitude)
+    print(f"Number of parameters generated: {discretizer.vocab_size} for {discretizer.vocab_size * (2 + 3 + 4 + 2)} total curves.")
+    return discretizer.discretize(labels)
 
 
 def fit(
@@ -44,6 +63,7 @@ def fit(
         A dict mapping symbol -> {
             "breakpoints": List[int],
             "labels": List[dict],
+            "discretized_labels": Optional[List[dict]],
         }
     """
     # Build default segmenter & labeler from config
@@ -104,6 +124,18 @@ def fit(
         )
         labels = labeler.label(smoothed, breakpoints)
 
+        labels = discretize(
+            labels,
+            config.discretization_log_max_power,
+            config.discretization_log_min_power,
+            config.discretization_points_per_magnitude,
+        )
+
+        result_for_symbol: Dict[str, Any] = {
+            "breakpoints": breakpoints,
+            "labels": labels,
+        }
+
         if config.plot_enabled:
             print(f"{breakpoints = }")
             sns.set_theme(style="darkgrid")
@@ -134,12 +166,13 @@ def fit(
                 )
                 os.makedirs(outdir, exist_ok=True)
                 plt.savefig(
-                    os.path.join(outdir, f"{symbol}.png"), dpi=config.plot_dpi
+                    os.path.join(outdir, f"{symbol}.png"),
+                    dpi=config.plot_dpi,
                 )
 
             plt.clf()
 
-        curves[symbol] = {"breakpoints": breakpoints, "labels": labels}
+        curves[symbol] = result_for_symbol
 
     if config.plot_enabled and config.plot_show:
         plt.show()
@@ -147,44 +180,17 @@ def fit(
     return curves
 
 
-def discretize(
-    curves: Collection[dict[str, Any]], radius: float, step: float
-) -> Dict[str, List[List[float]]]:
-    """
-    Generates a discrete set of parameters for curve fitting.
+def print_labels(symbols: dict[str, dict[str, Any]]):
+    for symbol, data in symbols.items():
+        print(f"\n=== {symbol} ===")
 
-    The set of parameters is generated for each curve type present in the
-    input `curves`.
+        labels = data["labels"]
 
-    Args:
-        curves: A collection of dictionaries, where each dictionary represents
-                a curve and contains a "label" key with the curve's name.
-        radius: The radius for the discrete parameter range (-radius to +radius).
-        step: The step size for the discrete parameter range.
+        for i, seg in enumerate(labels):
+            start, end = seg["start"], seg["end"]
+            label, params, error = seg["label"], seg["params"], seg["error"]
 
-    Returns:
-        A dictionary mapping curve labels (e.g., "linear") to a list of
-        discrete parameter combinations.
-    """
-    discrete_range = np.arange(-radius, radius + step, step)
+            print_str = f"{start:>4}:{end:<4}  {label:<12}  {params=!r}  "
 
-    # Get unique curve labels from the input
-    labels = set(
-        curve["label"]
-        for curve in curves
-        if "label" in curve and curve["label"] != "constant"
-    )
-
-    labeler = Labeler()
-    num_params_map = {name: len(p0) for name, p0 in labeler.p0.items()}
-
-    discrete_params: Dict[str, List[List[float]]] = {}
-
-    for label in labels:
-        if label in num_params_map:
-            num_params = num_params_map[label]
-            # Generate all combinations
-            param_combinations = product(discrete_range, repeat=num_params)
-            discrete_params[label] = [list(p) for p in param_combinations]
-
-    return discrete_params
+            print_str += f"{error=:.4f}"
+            print(print_str)

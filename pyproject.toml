@@ -48,7 +48,7 @@ disable = [
 
 [tool.ruff]
 line-length = 80
-indent-width = 2
+indent-width = 4
 
 [tool.ruff.format]
 docstring-code-format = true
