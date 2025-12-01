@@ -46,3 +46,15 @@ class Discretizer:
     @property
     def vocab_size(self) -> int:
         return len(self.discrete_range)
+
+    def get_param_value(self, index: int) -> float:
+        """Returns the continuous value for a parameter index."""
+        if 0 <= index < len(self.discrete_range):
+            return self.discrete_range[index]
+        raise ValueError(f"Index {index} out of bounds for param range.")
+
+    def get_curve_type(self, index: int) -> str:
+        """Returns the curve type string for an index."""
+        if 0 <= index < len(self.CURVE_TYPES):
+            return self.CURVE_TYPES[index]
+        raise ValueError(f"Index {index} out of bounds for curve types.")

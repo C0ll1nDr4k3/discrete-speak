@@ -14,6 +14,42 @@ from ds.data import CurveTokenizer
 from ds.bars import Conversion
 from ds.thresholds import Threshold
 
+def save_dataset_from_results(results: dict, config: Config, output_path: str):
+    """
+    Tokenizes results and saves them to a file.
+    """
+    # Initialize tokenizer
+    discretizer = Discretizer(
+        min_power=config.discretization_log_min_power,
+        max_power=config.discretization_log_max_power,
+        points_per_magnitude=config.discretization_points_per_magnitude
+    )
+    tokenizer = CurveTokenizer(discretizer)
+    
+    dataset_data = []
+    
+    print("Tokenizing results...")
+    for symbol, data in results.items():
+        labels = data.get("labels", [])
+        symbol_tokens = []
+        for label in labels:
+            try:
+                tokens = tokenizer.tokenize(label)
+                symbol_tokens.append(tokens)
+            except ValueError as e:
+                print(f"Skipping label due to error: {e}")
+                continue
+        
+        if symbol_tokens:
+            dataset_data.append({
+                "symbol": symbol,
+                "tokens": torch.tensor(symbol_tokens, dtype=torch.long) # [NumSegments, 5]
+            })
+            
+    print(f"Saving dataset to {output_path}...")
+    torch.save(dataset_data, output_path)
+    print("Done.")
+
 def generate_dataset(
     symbols: List[str],
     start_date: datetime,
@@ -48,37 +84,7 @@ def generate_dataset(
     # Note: fit returns a dict of symbol -> results
     results = fit(symbols, Security.EQUITIES, config)
     
-    # Initialize tokenizer
-    discretizer = Discretizer(
-        min_power=config.discretization_log_min_power,
-        max_power=config.discretization_log_max_power,
-        points_per_magnitude=config.discretization_points_per_magnitude
-    )
-    tokenizer = CurveTokenizer(discretizer)
-    
-    dataset_data = []
-    
-    print("Tokenizing results...")
-    for symbol, data in results.items():
-        labels = data.get("labels", [])
-        symbol_tokens = []
-        for label in labels:
-            try:
-                tokens = tokenizer.tokenize(label)
-                symbol_tokens.append(tokens)
-            except ValueError as e:
-                print(f"Skipping label due to error: {e}")
-                continue
-        
-        if symbol_tokens:
-            dataset_data.append({
-                "symbol": symbol,
-                "tokens": torch.tensor(symbol_tokens, dtype=torch.long) # [NumSegments, 5]
-            })
-            
-    print(f"Saving dataset to {output_path}...")
-    torch.save(dataset_data, output_path)
-    print("Done.")
+    save_dataset_from_results(results, config, output_path)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate curve dataset.")

@@ -21,6 +21,7 @@ class Config:
     start: datetime
     end: datetime = datetime.now()
     step: Any = TimeFrame.Day
+    max_time_series_len: int | None = None
 
     # Smoothing
     sg_window_length: int = 60

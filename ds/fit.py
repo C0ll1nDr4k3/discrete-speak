@@ -103,61 +103,95 @@ def fit(
                     time_bars=time_bars, volume_threshold=threshold
                 )
 
-        raw_prices = [tb.close for tb in conv_bars]
-        breakpoints = Ruptures.window(
-            raw_prices,
-            width=config.segmentation_jump,
-            model=config.segmentation_model,
-            pen=config.segmentation_penalty,
-            min_size=config.segmentation_min_size,
-            jump=config.segmentation_jump,
-        )
-        # rescale breakpoints into converted-bar indices
-        # breakpoints = [
-        #   int(bp * len(conv_bars) / len(time_bars)) for bp in breakpoints
-        # ]
-        conv_prices = [b.close for b in conv_bars]
-        smoothed = savgol_filter(
-            conv_prices,
-            window_length=config.sg_window_length,
-            polyorder=config.sg_polyorder,
-        )
-        labels = labeler.label(smoothed, breakpoints)
+        conv_prices_full = [b.close for b in conv_bars]
+        
+        # Chunking logic
+        max_len = config.max_time_series_len
+        if max_len is None:
+            chunks = [(0, conv_prices_full)]
+        else:
+            chunks = []
+            for i in range(0, len(conv_prices_full), max_len):
+                chunks.append((i, conv_prices_full[i : i + max_len]))
 
-        labels = discretize(
-            labels,
+        all_breakpoints = []
+        all_labels = []
+
+        for offset, chunk_prices in chunks:
+            if len(chunk_prices) < config.segmentation_min_size:
+                continue
+
+            breakpoints = Ruptures.window(
+                chunk_prices,
+                width=config.segmentation_jump,
+                model=config.segmentation_model,
+                pen=config.segmentation_penalty,
+                min_size=config.segmentation_min_size,
+                jump=config.segmentation_jump,
+            )
+            
+            # Adjust breakpoints to be relative to the full series
+            global_breakpoints = [bp + offset for bp in breakpoints]
+            all_breakpoints.extend(global_breakpoints)
+
+            smoothed = savgol_filter(
+                chunk_prices,
+                window_length=min(config.sg_window_length, len(chunk_prices)), # Ensure window length is valid
+                polyorder=config.sg_polyorder,
+            )
+            
+            chunk_labels = labeler.label(smoothed, breakpoints)
+            
+            # Adjust label start/end to be relative to the full series
+            for label in chunk_labels:
+                label["start"] += offset
+                label["end"] += offset
+                
+            all_labels.extend(chunk_labels)
+
+        # Discretize all labels together
+        all_labels = discretize(
+            all_labels,
             config.discretization_log_max_power,
             config.discretization_log_min_power,
             config.discretization_points_per_magnitude,
         )
 
         result_for_symbol: Dict[str, Any] = {
-            "breakpoints": breakpoints,
-            "labels": labels,
+            "breakpoints": all_breakpoints,
+            "labels": all_labels,
         }
 
         if config.plot_enabled:
-            print(f"{breakpoints = }")
+            print(f"{all_breakpoints = }")
             sns.set_theme(style="darkgrid")
-            sns.lineplot(conv_prices, alpha=0.5)
-            sns.lineplot(smoothed, alpha=0.75, label=symbol)
+            sns.lineplot(conv_prices_full, alpha=0.5)
+            # Plotting smoothed is tricky with chunks, let's skip or plot segments
+            # For simplicity, we won't plot the smoothed line for the full series if chunked, 
+            # or we could reconstruct it.
+            # sns.lineplot(smoothed, alpha=0.75, label=symbol) 
 
             # Add transparent vertical lines at breakpoints
-            for bp in breakpoints:
+            for bp in all_breakpoints:
                 plt.axvline(x=bp, alpha=0.3, linestyle="--", linewidth=1)
 
             # Plot the fitted curves for each segment
-            for label in labels:
-                start, end, label, params = (
+            for label in all_labels:
+                start, end, label_name, params = (
                     label["start"],
                     label["end"],
                     label["label"],
                     label["params"],
                 )
 
-                if label != "constant":
+                if label_name != "constant":
                     segment_x = np.arange(1, end - start + 1)
-                    fitted_y = labeler.functions[label](segment_x, *params)
+                    fitted_y = labeler.functions[label_name](segment_x, *params)
+                    # We need to shift fitted_y to the correct vertical position?
+                    # No, fit is on the values. But if we chunked, are values continuous?
+                    # Yes, we chunked the prices directly.
+                    # Wait, `labeler.label` fits curves to the data.
+                    # If we plot `fitted_y` at `np.arange(start, end)`, it should overlay the prices.
                     plt.plot(np.arange(start, end), fitted_y, linestyle="--")
 
             if config.plot_save:

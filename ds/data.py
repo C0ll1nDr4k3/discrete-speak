@@ -73,3 +73,51 @@ class CurveDataset(Dataset):
         seq_y = self.tokens[r_begin:r_end]
 
         return torch.tensor(seq_x, dtype=torch.long), torch.tensor(seq_y, dtype=torch.long)
+
+class PreTokenizedCurveDataset(Dataset):
+    def __init__(self, data: List[Dict[str, Any]], seq_len: int, label_len: int, pred_len: int):
+        """
+        Args:
+            data: List of dicts {'symbol': str, 'tokens': Tensor} (loaded from .pt).
+            seq_len: Input sequence length.
+            label_len: Start token length for decoder.
+            pred_len: Prediction sequence length.
+        """
+        self.seq_len = seq_len
+        self.label_len = label_len
+        self.pred_len = pred_len
+        
+        # Flatten all tokens into a single sequence for now
+        # Ideally we should respect symbol boundaries, but for simplicity let's concatenate
+        # or just list all valid windows.
+        # Let's concatenate for now to maximize data usage, assuming breaks are rare/acceptable noise.
+        # Better: Keep them separate and index into them.
+        
+        self.sequences = []
+        for item in data:
+            self.sequences.append(item['tokens'])
+            
+        # Create a mapping from global index to (sequence_index, local_index)
+        self.index_map = []
+        for seq_idx, seq in enumerate(self.sequences):
+            num_windows = len(seq) - seq_len - pred_len + 1
+            if num_windows > 0:
+                for i in range(num_windows):
+                    self.index_map.append((seq_idx, i))
+                    
+    def __len__(self):
+        return len(self.index_map)
+
+    def __getitem__(self, index):
+        seq_idx, s_begin = self.index_map[index]
+        
+        s_end = s_begin + self.seq_len
+        r_begin = s_end - self.label_len
+        r_end = r_begin + self.label_len + self.pred_len
+
+        seq = self.sequences[seq_idx]
+        
+        seq_x = seq[s_begin:s_end]
+        seq_y = seq[r_begin:r_end]
+
+        return seq_x, seq_y
