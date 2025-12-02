@@ -1,3 +1,7 @@
+dataset.pt
+best_model.pth
+plots
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

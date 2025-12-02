@@ -1,4 +1,5 @@
 import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 from datetime import datetime, timedelta
 from time import time_ns
 
@@ -40,18 +41,18 @@ def main() -> None:
 
     # Instantiate and run the offline pipeline
     symbols: list[str] = [
-        # "META",
+        "META",
         "AAPL",
-        # "GOOG",
+        "GOOG",
         # "GOOGL",
         "NVDA",
-        # "TSM",
-        # "ORCL",
+        "TSM",
+        "ORCL",
         "PLTR",
-        # "XOM",
-        # "RY",
-        # "DB",
-        # "JPM",
+        "XOM",
+        "RY",
+        "DB",
+        "JPM",
     ]
 
     print("Loading dataset...")
