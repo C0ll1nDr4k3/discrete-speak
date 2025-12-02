@@ -1,6 +1,8 @@
-import numpy as np
-from typing import List, Dict, Any, Optional
 import copy
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+
 
 class Discretizer:
     CURVE_TYPES = ["linear", "quadratic", "cubic", "exponential", "constant"]

@@ -1,9 +1,12 @@
 import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from .labeler import Labeler
+
 from .discretization import Discretizer
+from .labeler import Labeler
+
 
 class Visualizer:
     def __init__(self, save_dir: str = "plots/steps"):

@@ -1,8 +1,11 @@
+from typing import Any, Dict, List, Tuple
+
+import numpy as np
 import torch
 from torch.utils.data import Dataset
-from typing import List, Dict, Any, Tuple
-import numpy as np
+
 from .discretization import Discretizer
+
 
 class CurveTokenizer:
     def __init__(self, discretizer: Discretizer):

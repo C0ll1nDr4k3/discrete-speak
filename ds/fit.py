@@ -18,13 +18,12 @@ from scipy.signal import savgol_filter
 
 from .bars import Bar, Conversion, DollarBar, VolumeBar
 from .config import Config
+from .discretization import Discretizer
 from .labeler import Labeler
 from .retrieval import Alpaca, Security
 from .segmenters import Ruptures
 from .thresholds import Threshold
 
-
-from .discretization import Discretizer
 
 def discretize(
     labels: List[Dict[str, Any]],

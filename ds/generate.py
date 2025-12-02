@@ -1,18 +1,19 @@
 import argparse
-import torch
+import os
 from datetime import datetime, timedelta
 from typing import List
-import os
 
+import torch
 from alpaca.data.timeframe import TimeFrame
 
+from ds.bars import Conversion
 from ds.config import Config
+from ds.data import CurveTokenizer
+from ds.discretization import Discretizer
 from ds.fit import fit
 from ds.retrieval import Security
-from ds.discretization import Discretizer
-from ds.data import CurveTokenizer
-from ds.bars import Conversion
 from ds.thresholds import Threshold
+
 
 def save_dataset_from_results(results: dict, config: Config, output_path: str):
     """

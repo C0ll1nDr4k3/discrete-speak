@@ -1,14 +1,25 @@
+import os
 from datetime import datetime, timedelta
 from time import time_ns
 
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
 from alpaca.data.timeframe import TimeFrame
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from ds.bars import Conversion
 from ds.config import Config
+from ds.data import PreTokenizedCurveDataset
+from ds.discretization import Discretizer
 from ds.fit import fit, print_labels
+from ds.generate import save_dataset_from_results
+from ds.labeler import Labeler
+from ds.models.model import InformerStack
 from ds.retrieval import Security
 from ds.thresholds import Threshold
-from ds.generate import save_dataset_from_results
+from ds.visualization import Visualizer
 
 
 def main() -> None:
@@ -43,40 +54,35 @@ def main() -> None:
         # "JPM",
     ]
 
-    start = time_ns()
-    results = fit(symbols, Security.EQUITIES, config)
-    end = time_ns()
-
-    print_labels(results)
-    
-    # Generate dataset
-    save_dataset_from_results(results, config, "dataset.pt")
-
-    print(f"Training completed in {end - start} nanoseconds")
-
-    # --- Training Loop ---
-    import torch
-    from torch.utils.data import DataLoader
-    from ds.data import PreTokenizedCurveDataset
-    from ds.models.model import InformerStack
-    from ds.discretization import Discretizer
-
     print("Loading dataset...")
     try:
         dataset_data = torch.load("dataset.pt")
     except FileNotFoundError:
-        print("Dataset not found. Skipping training.")
-        return
+        start = time_ns()
+        results = fit(symbols, Security.EQUITIES, config)
+        end = time_ns()
+
+        # print_labels(results)
+    
+        # Generate dataset
+        save_dataset_from_results(results, config, "dataset.pt")
+
+        print(f"Fitting completed in {end - start} nanoseconds")
+
+    dataset_data = torch.load("dataset.pt")
+
+    # --- Training Loop ---
 
     # Hyperparameters
     seq_len = 4
     label_len = 4
     pred_len = 4
-    batch_size = 32
-    d_model = 512
+    batch_size = 512
+    d_model = 32
     learning_rate = 1e-4
-    epochs = 1_000
-    plot_step = epochs // 10
+    epochs = 5_000
+    plot_step = max(1, epochs // 10)
+    patience = 5_000
 
     # Initialize Discretizer to get vocab size
     discretizer = Discretizer(
@@ -150,38 +156,36 @@ def main() -> None:
         d_model=d_model,
         embed='curve',
         attn='full', # Use full attention for short sequences
+        dropout=0.1, # Add dropout
         vocab_size=vocab_size,
         num_types=num_types,
         device=device
     )
     model.to(device)
-
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    
     criterion = torch.nn.CrossEntropyLoss()
-
-    print("Starting training...")
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5) # Add weight decay
     
     losses = []
     val_losses = []
-    
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import os
-    from ds.labeler import Labeler
-    from ds.visualization import Visualizer
+    train_epoch_losses = []
     
     labeler = Labeler()
     visualizer = Visualizer(save_dir="plots/steps")
 
-    for epoch in range(epochs):
+    # Early Stopping parameters
+    best_val_loss = float('inf')
+    patience_counter = 0
+    best_model_path = "best_model.pth"
+
+    print("Starting training...")
+    for epoch in tqdm(range(epochs)):
         # Training Phase
         model.train()
         total_loss = 0
         for i, (batch_x, batch_y) in enumerate(train_loader):
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
-            
-            optimizer.zero_grad()
             
             # batch_x: [B, SeqLen, 5]
             # batch_y: [B, LabelLen+PredLen, 5]
@@ -190,6 +194,8 @@ def main() -> None:
             # Mask the future (prediction) part with zeros to prevent leakage
             dec_inp = torch.zeros_like(batch_y[:, -pred_len:, :]).long()
             dec_inp = torch.cat([batch_y[:, :label_len, :], dec_inp], dim=1).long().to(device)
+            
+            optimizer.zero_grad()
             
             # Forward
             # Note: We need to pass x_mark as None
@@ -220,6 +226,7 @@ def main() -> None:
                 visualizer.visualize(batch_y, outputs, global_step, discretizer, labeler, pred_len)
                 
         avg_train_loss = total_loss / len(train_loader)
+        train_epoch_losses.append(avg_train_loss)
         
         # Validation Phase
         model.eval()
@@ -242,16 +249,35 @@ def main() -> None:
         avg_val_loss = total_val_loss / len(val_loader) if len(val_loader) > 0 else 0
         val_losses.append(avg_val_loss)
         
-        print(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+        # tqdm.write(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+        
+        # Early Stopping Check
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            patience_counter = 0
+            torch.save(model.state_dict(), best_model_path)
+            # tqdm.write(f"Validation loss improved. Saved model to {best_model_path}")
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                print(f"Early stopping triggered at epoch {epoch+1}")
+                break
 
     print("Training finished.")
+    
+    # Load best model
+    if os.path.exists(best_model_path):
+        model.load_state_dict(torch.load(best_model_path))
+        print(f"Loaded best model from {best_model_path}")
 
     # Plot loss
     plt.figure()
-    plt.plot(losses)
-    plt.title("Training Loss")
-    plt.xlabel("Step")
+    plt.plot(train_epoch_losses, label='Train Loss')
+    plt.plot(val_losses, label='Val Loss')
+    plt.title("Training vs Validation Loss")
+    plt.xlabel("Epoch")
     plt.ylabel("Loss")
+    plt.legend()
     plt.savefig("plots/loss.png")
     print("Loss curve saved to plots/loss.png")
 
