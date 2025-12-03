@@ -40,20 +40,45 @@ def main() -> None:
     )
 
     # Instantiate and run the offline pipeline
-    symbols: list[str] = [
-        "META",
-        "AAPL",
-        "GOOG",
-        # "GOOGL",
-        "NVDA",
-        "TSM",
-        "ORCL",
-        "PLTR",
-        "XOM",
-        "RY",
-        "DB",
-        "JPM",
-    ]
+    import csv
+    
+    # Percentage of symbols to retain (0.0 to 1.0)
+    symbol_retention_rate = 0.1
+    
+    symbols: list[str] = []
+    try:
+        with open("russell-3000.csv", "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            found_header = False
+            for row in reader:
+                if not row:
+                    continue
+                if row[0] == "Ticker":
+                    found_header = True
+                    continue
+                if found_header:
+                    # Check Asset Class (index 3)
+                    if len(row) > 3 and row[3] == "Equity":
+                        # Clean symbol: strip whitespace and replace spaces with dots (e.g. "BRK B" -> "BRK.B")
+                        sym = row[0].strip().replace(" ", ".")
+                        # Filter out symbols with numbers or other characters (Alpaca equities are usually letters and dots)
+                        if sym and all(c.isalpha() or c == '.' for c in sym):
+                            symbols.append(sym)
+    except FileNotFoundError:
+        print("russell-3000.csv not found. Using fallback symbols.")
+        symbols = ["AAPL", "MSFT", "GOOG"]
+        
+    print(f"Loaded {len(symbols)} symbols from russell-3000.csv")
+    
+    # Apply retention rate
+    if symbol_retention_rate < 1.0:
+        original_count = len(symbols)
+        retain_count = int(original_count * symbol_retention_rate)
+        symbols = symbols[:retain_count]
+        print(f"Retaining {retain_count} symbols ({symbol_retention_rate*100}%)")
+
+    if symbols:
+        print(f"First 5 symbols: {symbols[:5]}")
 
     print("Loading dataset...")
     try:
@@ -75,7 +100,7 @@ def main() -> None:
     # --- Training Loop ---
 
     # Hyperparameters
-    seq_len = 4
+    seq_len = 8
     label_len = 4
     pred_len = 4
     batch_size = 512
@@ -83,7 +108,7 @@ def main() -> None:
     learning_rate = 1e-4
     epochs = 5_000
     plot_step = max(1, epochs // 10)
-    patience = 5_000
+    patience = 100
 
     # Initialize Discretizer to get vocab size
     discretizer = Discretizer(
